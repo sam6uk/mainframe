@@ -327,7 +327,164 @@ var semplice = {"default_api_url":"\/wp-json","semplice_api_url":"\/wp-json\/sem
 /* ]]> */
 </script>
 <script type="text/javascript" src="/wp-content/themes/semplice4/assets/js/frontend.min.js?ver=4.4.11" id="semplice-frontend-js-js"></script>
-<script type="text/javascript" id="semplice-custom-javascript">// ---------------------------------------------------------------------------------------  plexus
+<script type="text/javascript" id="semplice-custom-javascript">//------------------------------------------------------------------------------------------------------------------------------ 3D
+
+document.addEventListener("DOMContentLoaded", () => {
+  // --- Create container ---
+  let container = document.getElementById("background-3d");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "background-3d";
+    Object.assign(container.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100vw",
+      height: "100vh",
+      pointerEvents: "none",
+      zIndex: "150",
+    });
+    document.body.appendChild(container);
+  }
+
+  // --- Helper to load JS dynamically ---
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error("Failed to load script: " + src));
+      document.body.appendChild(s);
+    });
+  }
+
+  (async function() {
+    try {
+      // Load Three.js r147 and legacy GLTFLoader
+      await loadScript("/wp-content/themes/semplice4/assets/js/three.js-r147/build/three.js");
+      await loadScript("/wp-content/themes/semplice4/assets/js/GLTFLoader.js");
+
+      // --- Scene Setup ---
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      // --- Wireframe ---
+      const geometry = new THREE.IcosahedronGeometry(2.5, 1);
+      const wireframe = new THREE.WireframeGeometry(geometry);
+      const wireMaterial = new THREE.LineBasicMaterial({ color: 0x00b22f, transparent: true, opacity: 0.35 });
+      const wireMesh = new THREE.LineSegments(wireframe, wireMaterial);
+      scene.add(wireMesh);
+
+      // --- Lights ---
+      const light1 = new THREE.PointLight(0x00ff66, 0.6);
+      const light2 = new THREE.PointLight(0x00ffcc, 0.4);
+      const light3 = new THREE.PointLight(0x007722, 0.8);
+      light1.position.set(3, 3, 5);
+      light2.position.set(-4, -3, -5);
+      light3.position.set(0, 2, -3);
+      scene.add(light1, light2, light3);
+
+      const pulseLight = new THREE.PointLight(0x00ff88, 0, 10);
+      pulseLight.position.set(0, 0, 3);
+      scene.add(pulseLight);
+
+      // --- Particles ---
+      const particles = new THREE.BufferGeometry();
+      const particleCount = 300;
+      const positions = new Float32Array(particleCount * 3);
+      for (let i = 0; i < particleCount * 3; i++) positions[i] = (Math.random() - 0.5) * 15;
+      particles.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const particleMaterial = new THREE.PointsMaterial({ color: 0x00ff99, size: 0.04, transparent: true, opacity: 0.6 });
+      const particleSystem = new THREE.Points(particles, particleMaterial);
+      scene.add(particleSystem);
+
+      camera.position.z = 7;
+      let t = 0;
+
+      // --- Pulse ---
+      let pulseTargetScale = 1;
+      let pulseTargetOpacity = 0.35;
+      let particlePulse = 0;
+      window.trigger3DPulse = () => {
+        pulseTargetScale = 1.25;
+        pulseTargetOpacity = 0.75;
+        particlePulse = 1;
+        pulseLight.intensity = 3;
+      };
+
+      // --- Load GLB Model ---
+      let coreMesh = null;
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        "/wp-content/uploads/2025/10/SDCard.glb",
+        (gltf) => {
+          coreMesh = gltf.scene;
+          coreMesh.scale.set(0.85, 0.85, 0.85);
+          scene.add(coreMesh);
+        },
+        undefined,
+        (error) => console.error("GLTF load error:", error)
+      );
+
+      // --- Animation Loop ---
+      function animate() {
+        requestAnimationFrame(animate);
+        t += 0.003;
+
+        wireMesh.rotation.x += 0.0025;
+        wireMesh.rotation.y += 0.0035;
+        if (coreMesh) {
+          coreMesh.rotation.x += 0.002;
+          coreMesh.rotation.y += 0.0028;
+          coreMesh.scale.lerp(new THREE.Vector3(1,1,1).multiplyScalar(pulseTargetScale), 0.08);
+        }
+
+        wireMaterial.opacity += (pulseTargetOpacity - wireMaterial.opacity) * 0.08;
+        pulseTargetScale += (1 - pulseTargetScale) * 0.05;
+        pulseTargetOpacity += (0.35 - pulseTargetOpacity) * 0.05;
+
+        pulseLight.intensity += (0 - pulseLight.intensity) * 0.07;
+
+        const baseOpacity = 0.6 + Math.sin(t * 3) * 0.05;
+        if (particlePulse > 0.01) {
+          particleMaterial.opacity = baseOpacity + particlePulse * 0.4;
+          particlePulse *= 0.85;
+        } else {
+          particleMaterial.opacity = baseOpacity;
+        }
+
+        camera.position.x = Math.sin(t) * 0.8;
+        camera.position.y = Math.cos(t * 0.5) * 0.5;
+        camera.lookAt(scene.position);
+
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+    } catch(err) {
+      console.error("Error loading scripts:", err);
+    }
+  })();
+});
+
+
+
+
+
+
+
+
+// --------------------------------------------------------------------------------------------------------------  plexus
 
 document.addEventListener("DOMContentLoaded", () => {
   let container = document.getElementById("plexus-container");
@@ -796,181 +953,6 @@ setTimeout(() => {
 requestAnimationFrame(frame);
 });
 
-
-//------------------------------------------------------------------------------------------------------------------------------ 3D
-
-
-document.addEventListener("DOMContentLoaded", () => {
-  // --- CREATE CONTAINER ---
-  let container = document.getElementById("background-3d");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "background-3d";
-    Object.assign(container.style, {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      width: "100vw",
-      height: "100vh",
-      pointerEvents: "none",
-      zIndex: "150",
-    });
-    document.body.appendChild(container);
-  }
-
-  // --- LOAD THREE.JS ---
-  const script = document.createElement("script");
-  script.src = "https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js";
-  script.onload = () => {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-
-    // --- LIGHTS ---
-    const light1 = new THREE.PointLight(0x00ff66, 0.6);
-    const light2 = new THREE.PointLight(0x00ffcc, 0.4);
-    const light3 = new THREE.PointLight(0x007722, 0.8);
-    light1.position.set(3, 3, 5);
-    light2.position.set(-4, -3, -5);
-    light3.position.set(0, 2, -3);
-    scene.add(light1, light2, light3);
-
-    // --- PARTICLES ---
-    const particles = new THREE.BufferGeometry();
-    const particleCount = 300;
-    const positions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount * 3; i++) {
-      positions[i] = (Math.random() - 0.5) * 15;
-    }
-    particles.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const particleMaterial = new THREE.PointsMaterial({
-      color: 0x00ff99,
-      size: 0.04,
-      transparent: true,
-      opacity: 0.6,
-    });
-    const particleSystem = new THREE.Points(particles, particleMaterial);
-    scene.add(particleSystem);
-
-    // --- CAMERA ---
-    camera.position.z = 7;
-    let t = 0;
-
-    // --- STATE VARS ---
-    let wireMesh = null;
-    let pulseTargetScale = 1;
-    let pulseTargetOpacity = 0.35;
-
-    // --- PULSE LIGHT ---
-    const pulseLight = new THREE.PointLight(0x00ff66, 0, 10);
-    pulseLight.position.set(0, 0, 3);
-    scene.add(pulseLight);
-
-    // --- LOADERS ---
-    const loaderScript = document.createElement("script");
-    loaderScript.src = "https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/GLTFLoader.js";
-    loaderScript.onload = () => {
-      const loader = new THREE.GLTFLoader();
-
-      // --- LOAD YOUR CUSTOM MODEL ---
-      loader.load(
-        "https://raw.githubusercontent.com/sam6uk/mainframe/main/Assets/Models/SDCard.glb",
-        (gltf) => {
-          const inner = gltf.scene.clone();
-          const outer = gltf.scene.clone();
-
-          // --- Inner core (glow) ---
-          inner.scale.set(2.3, 2.3, 2.3);
-          inner.traverse((child) => {
-            if (child.isMesh) {
-              child.material = new THREE.MeshPhongMaterial({
-                color: 0x00ff66,
-                emissive: 0x00ff66,
-                emissiveIntensity: 0.4,
-                transparent: true,
-                opacity: 0.2,
-                wireframe: false,
-              });
-            }
-          });
-
-          // --- Outer wireframe shell ---
-          outer.scale.set(2.5, 2.5, 2.5);
-          outer.traverse((child) => {
-            if (child.isMesh) {
-              child.material = new THREE.MeshBasicMaterial({
-                color: 0x00b22f,
-                transparent: true,
-                opacity: 0.35,
-                wireframe: true,
-              });
-            }
-          });
-
-          scene.add(inner);
-          scene.add(outer);
-          wireMesh = outer;
-        },
-        undefined,
-        (error) => console.error("Error loading 3D model:", error)
-      );
-    };
-    document.body.appendChild(loaderScript);
-
-    // --- PULSE FUNCTION (called externally) ---
-    window.trigger3DPulse = () => {
-      pulseTargetScale = 1.2;
-      pulseTargetOpacity = 0.65;
-      pulseLight.intensity = 2.5;
-    };
-
-    // --- ANIMATION LOOP ---
-    function animate() {
-      requestAnimationFrame(animate);
-      t += 0.003;
-
-      if (wireMesh) {
-        wireMesh.scale.lerp(new THREE.Vector3(1, 1, 1).multiplyScalar(pulseTargetScale), 0.08);
-        wireMesh.traverse((child) => {
-          if (child.isMesh && child.material.opacity !== undefined) {
-            child.material.opacity += (pulseTargetOpacity - child.material.opacity) * 0.08;
-          }
-        });
-        pulseTargetScale += (1 - pulseTargetScale) * 0.05;
-        pulseTargetOpacity += (0.35 - pulseTargetOpacity) * 0.05;
-
-        wireMesh.rotation.x += 0.0025;
-        wireMesh.rotation.y += 0.0035;
-      }
-
-      // --- Light + Particle Pulse ---
-      pulseLight.intensity += (0 - pulseLight.intensity) * 0.07;
-      const pulseEffect = Math.max(pulseLight.intensity * 0.3, 0);
-      particleMaterial.size = 0.04 + pulseEffect * 0.03;
-      particleMaterial.opacity = 0.6 + pulseEffect * 0.2;
-
-      // --- Background motion ---
-      particleSystem.rotation.y += 0.0006;
-      particleSystem.rotation.x += 0.0003;
-      camera.position.x = Math.sin(t) * 0.8;
-      camera.position.y = Math.cos(t * 0.5) * 0.5;
-      camera.lookAt(scene.position);
-
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  };
-  document.body.appendChild(script);
-});
 
 </script>	</body>
 </html>
