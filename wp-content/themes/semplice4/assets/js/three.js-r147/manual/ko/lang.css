@@ -1,0 +1,19 @@
+@font-face {
+    font-family: 'PureunJeonnam';
+    font-style: normal;
+    font-weight: 700;
+    src: url(/wp-content/themes/semplice4/assets/js/three.js-r147/manual/ko/resources/fonts/PureunJeonnam-Bold.woff) format('woff'),
+         url(/wp-content/themes/semplice4/assets/js/three.js-r147/manual/ko/resources/fonts/PureunJeonnam-Bold.ttf) format('truetype');
+}
+@font-face {
+    font-family: 'PureunJeonnam';
+    font-style: normal;
+    font-weight: 400;
+    src: url(/wp-content/themes/semplice4/assets/js/three.js-r147/manual/ko/resources/fonts/PureunJeonnam.woff) format('woff'),
+         url(/wp-content/themes/semplice4/assets/js/three.js-r147/manual/ko/resources/fonts/PureunJeonnam.ttf) format('truetype');
+}
+
+:root {
+    --article-font-family: 'PureunJeonnam', sans-serif;
+    --headline-font-family: 'PureunJeonnam', sans-serif;
+}
